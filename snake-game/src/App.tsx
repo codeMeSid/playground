@@ -1,15 +1,15 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import GameBoard from "./GameBoard";
 import GameControl from "./GameControl";
-// import { SnakeGame } from "./utils/_SnakeGame";
-import HighScoreBoard from "./HighScoreBoard";
 import { SnakeGame } from "./utils/SnakeGame";
+import { SnakeGame2 } from "./utils/SnakeGame2";
+
+const game2 = new SnakeGame2();
 
 const App = () => {
   let game: SnakeGame = new SnakeGame();
   const canvasRef = useRef<HTMLCanvasElement>();
   const [score, setScore] = useState(0);
-  const [playerName, setPlayerName] = useState("");
 
   const scoreUpdateListener = (ev: string, val: number) => {
     switch (ev) {
@@ -37,7 +37,6 @@ const App = () => {
           triggerNewGame={game._reset_}
           score={score}
         />
-        <HighScoreBoard />
       </Suspense>
     </div>
   );

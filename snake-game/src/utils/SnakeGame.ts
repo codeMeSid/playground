@@ -40,8 +40,6 @@ export class SnakeGame extends GameDirector {
       snake: { x: 0, y: 0, z: 0 },
     };
     this._snakeBody = Array(1).fill(this._game_asset_postion["snake"]);
-    this._handleInput_ = this._handleInput_.bind(this);
-    this._reset_ = this._reset_.bind(this);
   }
   _init_(
     boardRef: HTMLCanvasElement,
@@ -83,7 +81,9 @@ export class SnakeGame extends GameDirector {
     this._snakeBody = Array(1).fill(this._game_asset_postion["snake"]);
     this._game_asset_velocity["snake"] = { x: 0, y: 0, z: 0 };
     this._renderFood(true);
-    this._scoring_func("reset", 0);
+    if (this._scoring_func) {
+      this._scoring_func("reset", 0);
+    }
     this._remove_eventListeners();
     this._start_();
   }
@@ -179,7 +179,7 @@ export class SnakeGame extends GameDirector {
         h: this._game_settings.cellSize,
         w: this._game_settings.cellSize,
         d: this._game_settings.cellSize,
-      },0);
+      });
     });
   };
 }

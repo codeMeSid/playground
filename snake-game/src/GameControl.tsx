@@ -1,7 +1,6 @@
 interface Props {
   score: number;
   triggerNewGame: () => void;
- 
 }
 
 const GameControl = (props: Props) => {
@@ -15,10 +14,10 @@ const GameControl = (props: Props) => {
         columnGap: 8,
       }}
     >
-      <button onClick={triggerNewGame}>
+      <button onClick={() => triggerNewGame()}>
         Start New Game
       </button>
-     
+
       <div
         id="score"
         style={{
