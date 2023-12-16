@@ -1,188 +1,185 @@
-export class SnakeGame {
-  // board
-  private _board: CanvasRenderingContext2D | undefined;
-  private _boardEngineId: number;
-  // game physics
-  private _fps: number;
-  private _cell_size: number;
-  private _board_rows: number;
-  private _board_cols: number;
-  private _gameVelocity: number;
-  private _scoringFunc: any;
+import {
+  AssetPosition,
+  GameDirector,
+  GameSettings,
+  ScoringFunc,
+} from "brain-module";
 
-  // game entity  position
-  private _foodCoord: Coord;
-  private _snakeHeadCoord: Coord;
-  private _snakeBodyCoords: Array<Coord>;
-  private _snakeVelocity: Coord;
-
-  constructor(
-    settings: Settings = {},
-  ) {
-    const _settings = {
-      fps: 30,
+export class SnakeGame extends GameDirector {
+  private _snake_velocity: number;
+  protected _game_settings: GameSettings;
+  protected _game_asset_init_data: Record<string, AssetPosition>;
+  protected _game_asset_postion: Record<string, AssetPosition>;
+  protected _game_asset_velocity: Record<string, AssetPosition>;
+  protected _board: CanvasRenderingContext2D;
+  protected _scoring_func: ScoringFunc;
+  private _snakeBody: Array<AssetPosition>;
+  constructor() {
+    super();
+    this._snake_velocity = 1;
+    this._board = undefined as any;
+    this._scoring_func = undefined as any;
+    this._game_settings = {
+      fps: 20,
       cellSize: 25,
-      board_col_count: 25,
-      board_row_count: 25,
-      ...settings,
+      boardColCount: 25,
+      boardRowCount: 25,
+      boardDepCount: 25,
+      timerId: -1,
+      boardColor: "black",
     };
-    this._boardEngineId = -1;
-    this._gameVelocity = 1;
-    this._fps = _settings.fps as number;
-    this._cell_size = _settings.cellSize as number;
-    this._board_rows = _settings.board_row_count as number;
-    this._board_cols = _settings.board_col_count as number;
-    this._foodCoord = { x: 0, y: 0 };
-    this._snakeHeadCoord = {
-      x: ((this._cell_size * this._board_cols) - this._cell_size) / 2,
-      y: ((this._cell_size * this._board_rows) - this._cell_size) / 2,
+    this._game_asset_init_data = {
+      board: { x: 0, y: 0, z: 0 },
+      food: this.randomAssetPosition(),
+      snake: { x: 0, y: 0, z: 0 },
     };
-    this._snakeVelocity = { x: 0, y: 0 };
-    this._snakeBodyCoords = Array(1).fill(this._snakeHeadCoord);
-    window.addEventListener("keydown", this._changeSnakeDirection);
+    this._game_asset_postion = {
+      ...this._game_asset_init_data,
+    };
+    this._game_asset_velocity = {
+      snake: { x: 0, y: 0, z: 0 },
+    };
+    this._snakeBody = Array(1).fill(this._game_asset_postion["snake"]);
+    this._handleInput_ = this._handleInput_.bind(this);
+    this._reset_ = this._reset_.bind(this);
   }
-
-  public init = (boardRef: HTMLCanvasElement, scoringFunc: any) => {
-    boardRef.width = this._board_cols * this._cell_size;
-    boardRef.height = this._board_rows * this._cell_size;
+  _init_(
+    boardRef: HTMLCanvasElement,
+    scorer?: ScoringFunc | undefined,
+    settings?: Partial<GameSettings> | undefined,
+  ): void {
+    this._game_settings = {
+      ...this._game_settings,
+      ...(settings ? settings : {}),
+    };
+    boardRef.width = this._game_settings.boardColCount *
+      this._game_settings.cellSize;
+    boardRef.height = this._game_settings.boardRowCount *
+      this._game_settings.cellSize;
     this._board = boardRef.getContext("2d") as CanvasRenderingContext2D;
-    this._scoringFunc = scoringFunc;
-    // draw food
-    this._generateFoodRandomly(true);
-    // start game
-    this._startGame();
-  };
-
-  private _startGame() {
-    this._boardEngineId = setInterval(() => {
-      // draw board and its walls
-      this._drawBoard();
-      this._generateFoodRandomly();
-      // draw snake
-      this._drawSnakeBody();
-    }, 1000 / this._fps);
+    this._scoring_func = scorer as ScoringFunc;
+    this._renderFood(true);
+    this._start_();
   }
-
-  public resetGame = () => {
-    if (this._boardEngineId !== -1) clearInterval(this._boardEngineId);
-    this._snakeHeadCoord = {
-      x: ((this._cell_size * this._board_cols) - this._cell_size) / 2,
-      y: ((this._cell_size * this._board_rows) - this._cell_size) / 2,
+  _start_(updatedSettings?: Partial<GameSettings> | undefined): void {
+    this._game_settings = {
+      ...this._game_settings,
+      ...(updatedSettings ? updatedSettings : {}),
     };
-    this._snakeBodyCoords = Array(1).fill(this._snakeHeadCoord);
-    this._snakeVelocity = { x: 0, y: 0 };
-    this._scoringFunc("reset");
-    this._generateFoodRandomly(true);
-  };
-
-  private _changeSnakeDirection = (ev: KeyboardEvent) => {
+    window.addEventListener("keydown", this._handleInput_, false);
+    this._game_settings.timerId = setInterval(
+      () => {
+        this.drawBoard();
+        this._renderFood();
+        this._renderSnake();
+        this._gameOver_();
+      },
+      1000 / this._game_settings.fps,
+    );
+  }
+  _reset_(): void {
+    if (this._game_settings.timerId) clearInterval(this._game_settings.timerId);
+    this._game_asset_postion["snake"] = this._game_asset_init_data["snake"];
+    this._snakeBody = Array(1).fill(this._game_asset_postion["snake"]);
+    this._game_asset_velocity["snake"] = { x: 0, y: 0, z: 0 };
+    this._renderFood(true);
+    this._scoring_func("reset", 0);
+    this._remove_eventListeners();
+    this._start_();
+  }
+  protected _gameOver_(): void {
+    const snakeHeadPos = this._game_asset_postion["snake"];
+    const boardWallRightPos = this._game_settings.cellSize *
+      this._game_settings.boardColCount;
+    const boardWallDownPos = this._game_settings.cellSize *
+      this._game_settings.boardRowCount;
+    if (
+      snakeHeadPos.x < 0 || (snakeHeadPos.x === boardWallRightPos) ||
+      (snakeHeadPos.y < 0) || (snakeHeadPos.y === boardWallDownPos)
+    ) {
+      this._reset_();
+    }
+  }
+  protected drawBoard(): void {
+    this.drawAsset(
+      this._game_settings.boardColor,
+      this._game_asset_postion["board"],
+      {
+        d: 0,
+        h: this._game_settings.boardRowCount * this._game_settings.cellSize,
+        w: this._game_settings.boardColCount * this._game_settings.cellSize,
+      },
+    );
+  }
+  protected _handleInput_(ev: KeyboardEvent) {
     switch (ev.code) {
       case "ArrowUp":
-        if (this._snakeVelocity.y === this._gameVelocity) return;
-        this._snakeVelocity = { x: 0, y: -1 * this._gameVelocity };
+        this._game_asset_velocity["snake"].x = 0;
+        this._game_asset_velocity["snake"].y = -1 * this._snake_velocity;
         break;
-
       case "ArrowDown":
-        if (this._snakeVelocity.y === -1 * this._gameVelocity) return;
-        this._snakeVelocity = { x: 0, y: this._gameVelocity };
+        this._game_asset_velocity["snake"].x = 0;
+        this._game_asset_velocity["snake"].y = this._snake_velocity;
         break;
-
       case "ArrowLeft":
-        if (this._snakeVelocity.x === this._gameVelocity) return;
-        this._snakeVelocity = { x: -1 * this._gameVelocity, y: 0 };
+        this._game_asset_velocity["snake"].x = -1 * this._snake_velocity;
+        this._game_asset_velocity["snake"].y = 0;
         break;
-
       case "ArrowRight":
-        if (this._snakeVelocity.x === -1 * this._gameVelocity) return;
-        this._snakeVelocity = { x: this._gameVelocity, y: 0 };
+        this._game_asset_velocity["snake"].x = this._snake_velocity;
+        this._game_asset_velocity["snake"].y = 0;
         break;
     }
-  };
+  }
+  private _renderFood = (newFood = false) => {
+    if (newFood) this._game_asset_postion["food"] = this.randomAssetPosition();
 
-  private _drawSnakeBody = () => {
-    this._snakeHeadCoord = {
-      x: this._snakeHeadCoord.x + (this._snakeVelocity.x * this._cell_size),
-      y: this._snakeHeadCoord.y + (this._snakeVelocity.y * this._cell_size),
-    };
+    const foodPos = this._game_asset_postion["food"];
+    const snakeHeadPos = this._game_asset_postion["snake"];
 
-    if (
-      this._snakeHeadCoord.x < 0 ||
-      (this._snakeHeadCoord.x >= this._board_cols * this._cell_size) ||
-      (this._snakeHeadCoord.y < 0) ||
-      (this._snakeHeadCoord.y >= this._board_rows * this._cell_size)
-    ) this.resetGame();
-
-    for (let i = this._snakeBodyCoords.length - 1; i >= 0; i--) {
-      this._snakeBodyCoords[i] = this._snakeBodyCoords[i - 1];
-    }
-
-    if (this._snakeBodyCoords.length > 0) {
-      this._snakeBodyCoords[0] = this._snakeHeadCoord;
-    }
-
-    this._drawOnCanvas("blue", this._snakeHeadCoord, {
-      w: this._cell_size,
-      h: this._cell_size,
-    });
-    this._snakeBodyCoords.forEach((sbC) => {
-      this._drawOnCanvas("blue", sbC, {
-        w: this._cell_size,
-        h: this._cell_size,
-      });
-    });
-  };
-
-  private _drawBoard = () => {
-    // draw grass ground
-    this._drawOnCanvas("green", { x: 0, y: 0 }, {
-      w: this._board_cols * this._cell_size,
-      h: this._board_rows * this._cell_size,
-    });
-  };
-
-  private _generateFoodRandomly = (isNew: boolean = false) => {
-    if (isNew) {
-      let foodX = Math.floor(Math.random() * this._board_cols) *
-        this._cell_size;
-      let foodY = Math.floor(Math.random() * this._board_rows) *
-        this._cell_size;
-      this._foodCoord = { x: foodX, y: foodY };
-    }
-
-    if (
-      this._snakeHeadCoord.x === this._foodCoord.x &&
-      this._snakeHeadCoord.y === this._foodCoord.y
-    ) {
-      this._snakeBodyCoords.push({ ...this._foodCoord });
-      this._generateFoodRandomly(true);
-      this._scoringFunc("add", 1);
-    } else {
-      this._drawOnCanvas("darkred", this._foodCoord, {
-        h: this._cell_size,
-        w: this._cell_size,
-      });
-    }
-  };
-
-  private _drawOnCanvas = (
-    color: string,
-    position: Coord,
-    dimension: Dimension,
-  ) => {
-    if (!this._board) {
-      console.log("Drawing Error");
+    if (foodPos.x === snakeHeadPos.x && foodPos.y === snakeHeadPos.y) {
+      this._snakeBody.push(foodPos);
+      this._renderFood(true);
+      this._scoring_func("update", 1);
       return;
     }
-    this._board.fillStyle = color;
-    this._board.beginPath();
-    this._board.roundRect(
-      position.x,
-      position.y,
-      dimension.w,
-      dimension.h,
-      16,
-    );
-    this._board.stroke();
-    this._board.fill();
+
+    this.drawAsset("pink", foodPos, {
+      h: this._game_settings.cellSize,
+      d: this._game_settings.cellSize,
+      w: this._game_settings.cellSize,
+    });
+  };
+  private _renderSnake = () => {
+    this._game_asset_postion["snake"] = {
+      x: this._game_asset_postion["snake"].x +
+        (this._game_asset_velocity["snake"].x * this._game_settings.cellSize),
+      y: this._game_asset_postion["snake"].y +
+        (this._game_asset_velocity["snake"].y * this._game_settings.cellSize),
+      z: this._game_asset_postion["snake"].z +
+        (this._game_asset_velocity["snake"].z * this._game_settings.cellSize),
+    };
+
+    for (let i = this._snakeBody.length - 1; i > 0; i--) {
+      this._snakeBody[i] = this._snakeBody[i - 1];
+    }
+
+    if (this._snakeBody.length > 0) {
+      this._snakeBody[0] = this._game_asset_postion["snake"];
+    }
+
+    this.drawAsset("darkred", this._game_asset_postion["snake"], {
+      h: this._game_settings.cellSize,
+      w: this._game_settings.cellSize,
+      d: this._game_settings.cellSize,
+    });
+
+    this._snakeBody.forEach((sbPos) => {
+      this.drawAsset("darkred", sbPos, {
+        h: this._game_settings.cellSize,
+        w: this._game_settings.cellSize,
+        d: this._game_settings.cellSize,
+      },0);
+    });
   };
 }
