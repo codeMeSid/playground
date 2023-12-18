@@ -1,13 +1,11 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import GameBoard from "./GameBoard";
 import GameControl from "./GameControl";
-import { SnakeGame } from "./utils/SnakeGame";
 import { SnakeGame2 } from "./utils/SnakeGame2";
 
 const game2 = new SnakeGame2();
 
 const App = () => {
-  let game: SnakeGame = new SnakeGame();
   const canvasRef = useRef<HTMLCanvasElement>();
   const [score, setScore] = useState(0);
 
@@ -23,9 +21,7 @@ const App = () => {
   };
 
   useEffect(() => {
-    if (canvasRef.current) {
-      game._init_(canvasRef.current, scoreUpdateListener, { fps: 10 }); //game.init(canvasRef.current, scoreUpdateListener);
-    }
+    if (canvasRef.current) game2._init_(canvasRef.current, scoreUpdateListener);
   }, [canvasRef]);
 
   return (
@@ -34,7 +30,7 @@ const App = () => {
       <Suspense fallback={<h1>LOADING</h1>}>
         <GameBoard boardRef={canvasRef} />
         <GameControl
-          triggerNewGame={game._reset_}
+          triggerNewGame={game2._start_}
           score={score}
         />
       </Suspense>

@@ -522,10 +522,10 @@ braces@^3.0.2:
   dependencies:
     fill-range "^7.0.1"
 
-brain-module@^2.0.1:
-  version "2.0.1"
-  resolved "https://registry.yarnpkg.com/brain-module/-/brain-module-2.0.1.tgz#f989496034c3a4f1418fd4d2b07b12f9474b2955"
-  integrity sha512-SUrJ3F+n7ncBPDdkIr1LxfYMNkyqaYAzN8Wiu8Yc7qfW7kc5QCSCxUIYe/N8HctxEjM4i4LTy4g+ShBb5mwLGw==
+brain-module@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/brain-module/-/brain-module-2.1.1.tgz#51179ccead114011c655f531d307677acd5a5094"
+  integrity sha512-P4ZQYSE7wU9RrzY7QDV5BKAKSIbbhEn0jvRBJvsHiniDXaFkMjhuWwqytOOrIR76+OMTsTIRip8v0Z7f1l7qLQ==
 
 callsites@^3.0.0:
   version "3.1.0"
