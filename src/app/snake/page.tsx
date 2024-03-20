@@ -16,7 +16,7 @@ function SnakeGamePage() {
         speed: 10,
       });
     }
-  }, [canvasRef]);
+  }, [canvasRef, p]);
 
   return (
     <div className={styles.rootContainer}>
