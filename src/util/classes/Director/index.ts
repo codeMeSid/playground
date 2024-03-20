@@ -1,138 +1,237 @@
-export interface BOARD_CONFIG {
-  color: string;
-  widthRatioToScreen: number;
-  heightRatioToScreen: number;
-  speed: number;
-  fixed?: boolean;
-}
+import {
+  GameAsset,
+  GameAssetCoord,
+  GameAudioAction,
+  GameAudioType,
+  GameConfigurableType,
+  GameConfiguration,
+  GameStatus,
+} from "./types";
 
-export interface ASSET {
-  x: number;
-  y: number;
-  color: string;
-  draw: () => void;
-  vx?: number;
-  vy?: number;
-  bodyTrail?: { x: number; y: number }[];
-  dim?: { r?: number; w?: number; h?: number };
-  update?: () => void;
-}
-
-export enum GAME_STATUS {
-  READY = "ready",
-  STARTED = "started",
-  GAME_OVER = "game over",
-}
-
-export class Director {
-  // declarations
-  protected _canvasRef_: HTMLCanvasElement;
-  protected _canvasCtx_: CanvasRenderingContext2D;
-  protected _canvasBoardConfig_: BOARD_CONFIG;
-  protected _gameStatus_: GAME_STATUS = GAME_STATUS.READY;
-  private _lastPaintTime = 0;
-
-  // constructor init config
-  constructor(canvasRef: HTMLCanvasElement, boardConfig: BOARD_CONFIG) {
-    // init properties
-    this._canvasRef_ = canvasRef;
-    this._canvasBoardConfig_ = boardConfig;
-    // init board properties
-    this._canvasBoardConfig_.color = (this._canvasBoardConfig_.color ??
-      "#FF0000") as string;
-    // init canvas properties
-    this.resizeCanvas();
-    this._canvasRef_.style.scale = "none";
-    this._canvasRef_.style.borderRadius = "4px";
-    // init canvas context
-    this._canvasCtx_ = this._canvasRef_.getContext(
-      "2d"
-    ) as CanvasRenderingContext2D;
-    // binding functions
+export abstract class Director {
+  // declations
+  private _ref_!: HTMLCanvasElement;
+  private _ctx_!: CanvasRenderingContext2D;
+  private _config_!: GameConfiguration;
+  private _status_!: GameStatus;
+  private _game_speed_!: number;
+  // audio
+  private _audio_!: Record<GameAudioType, HTMLAudioElement | null>;
+  private _last_paint_time_!: number;
+  private _game_score_!: number;
+  private _cell_size_!: number;
+  // constructor
+  constructor(ref: HTMLCanvasElement, config: Partial<GameConfiguration>) {
+    // config
+    this._config_ = config as GameConfiguration;
+    this._config_.bgColor = this._config_?.bgColor ?? "#bdbdbd";
+    this._config_.gameSpeed = this._config_?.gameSpeed ?? 30;
+    this._config_.gameDimRatio = {
+      r: 0,
+      h: this._config_.gameDimRatio?.h ?? 90,
+      w: this._config_.gameDimRatio?.w ?? 90,
+    };
+    this._config_.gameDimFixed = this._config_?.gameDimFixed ?? false;
+    // initialize
+    this._ref_ = ref;
+    this._ctx_ = ref.getContext("2d") as CanvasRenderingContext2D;
+    this._audio_ = { BG_AUDIO: null, GAME_OVER_AUDIO: null, MENU_AUDIO: null };
+    this._status_ = GameStatus.GAME_READY;
+    this._game_speed_ = this._config_.gameSpeed;
+    this._last_paint_time_ = 0;
+    this._game_score_ = 0;
+    this._cell_size_ = 10;
+    // context
+    const gameDimension = this.getBoardDimension();
+    this._ref_.width = gameDimension.w;
+    this._ref_.height = gameDimension.h;
+    // binding
+    this.getBoardDimension = this.getBoardDimension.bind(this);
+    this.setGameAudio = this.setGameAudio.bind(this);
+    this.audioAction = this.audioAction.bind(this);
+    this.updateGameConfig = this.updateGameConfig.bind(this);
+    this.getGameConfig = this.getGameConfig.bind(this);
     this.gameEngine = this.gameEngine.bind(this);
+    this.startGame = this.startGame.bind(this);
+    this.clearGameBoard = this.clearGameBoard.bind(this);
     this.drawRect = this.drawRect.bind(this);
-    this.writeText = this.writeText.bind(this);
     this.drawCircle = this.drawCircle.bind(this);
-    this.resizeCanvas = this.resizeCanvas.bind(this);
-    // functions
-    if (!boardConfig.fixed)
-      window.addEventListener("resize", this.resizeCanvas);
-  }
-
-  private resizeCanvas() {
-    const canvasWidth = parseInt(
-      (
-        window.innerWidth *
-        (this._canvasBoardConfig_.widthRatioToScreen / 100)
-      ).toFixed(2)
-    );
-    const canvasHeight = parseInt(
-      (
-        window.innerHeight *
-        (this._canvasBoardConfig_.heightRatioToScreen / 100)
-      ).toFixed(2)
-    );
-    this._canvasRef_.width = canvasWidth;
-    this._canvasRef_.height = canvasHeight;
-  }
-
-  protected gameEngine(
-    drawGame: any,
-    detectCollision: any,
-    updateGame: any,
-    currentTime = 0
-  ) {
-    window.requestAnimationFrame((ctime) => {
-      this.gameEngine(drawGame, detectCollision, updateGame, ctime);
-    });
-
-    const paintTime = (currentTime - this._lastPaintTime) / 1000;
-    const requiredPaintSpeed = 1 / this._canvasBoardConfig_.speed;
-    if (paintTime < requiredPaintSpeed) return;
-    this._lastPaintTime = currentTime as number;
-
-    this._canvasCtx_.clearRect(
-      0,
-      0,
-      this._canvasRef_.width,
-      this._canvasRef_.height
-    );
-    drawGame();
-    if (this._gameStatus_ === GAME_STATUS.STARTED) {
-      detectCollision();
-      updateGame();
+    this.writeText = this.writeText.bind(this);
+    this.generateRandomCoord = this.generateRandomCoord.bind(this);
+    // events
+    if (!this._config_.gameDimFixed) {
+      window.addEventListener("resize", () => {
+        const gameDimension = this.getBoardDimension();
+        this._ref_.width = gameDimension.w;
+        this._ref_.height = gameDimension.h;
+      });
     }
+    window.addEventListener("keydown", (ev) => {
+      if (this.gameKeyPressEvent) this.gameKeyPressEvent(ev.code);
+    });
+  }
+  // protected functions
+  protected createAsset(props: Partial<GameAsset>): GameAsset {
+    return {
+      body: props.body ?? [],
+      color: props.color ?? "black",
+      dim: props?.dim ?? { h: 10, r: 10, w: 10 },
+      pos: props?.pos ?? { x: 0, y: 0 },
+      spd: props?.spd ?? { x: 1, y: 1 },
+      draw: props?.draw ?? function () {},
+      reset: props?.reset ?? function () {},
+      update: props?.update ?? function () {},
+    };
+  }
+  protected setGameAudio(audioType: GameAudioType, audioSrc: string) {
+    this._audio_ = { ...this._audio_, [audioType]: new Audio(audioSrc) };
+  }
+  protected audioAction(audioType: GameAudioType, type: GameAudioAction) {
+    if (this._audio_[audioType]) this._audio_[audioType]?.[type]();
+  }
+  protected updateGameConfig(
+    configKey: GameConfigurableType,
+    updatedValue: never
+  ) {
+    if ((this._config_ as any)[configKey])
+      (this._config_ as any)[configKey] = updatedValue;
+    else
+      switch (configKey) {
+        case "gameScore":
+          this._game_score_ = updatedValue;
+          break;
+        case "cellSize":
+          this._cell_size_ = updatedValue;
+          break;
+      }
+  }
+  protected getGameConfig(configKey: GameConfigurableType) {
+    let value;
+    if ((this._config_ as any)[configKey])
+      value = (this._config_ as any)[configKey] as any;
+    else
+      switch (configKey) {
+        case "gameHeight":
+          value = this._ref_.height;
+          break;
+        case "gameWidth":
+          value = this._ref_.width;
+          break;
+        case "gameScore":
+          value = this._game_score_;
+          break;
+        case "cellSize":
+          value = this._cell_size_;
+          break;
+      }
+    return value;
+  }
+  protected startGame(currentTime: number) {
+    window.requestAnimationFrame(this.startGame);
+    const paintTime = (currentTime - this._last_paint_time_) / 1000;
+    const requiredPaintTime = 1 / this._game_speed_;
+    if (paintTime < requiredPaintTime) return;
+    this._last_paint_time_ = currentTime;
+    this.gameEngine();
   }
   protected drawRect(
     x: number,
     y: number,
     w: number,
     h: number,
-    boardColor: string
-  ): void {
-    this._canvasCtx_.beginPath();
-    this._canvasCtx_.rect(x, y, w, h);
-    this._canvasCtx_.fillStyle = boardColor;
-    this._canvasCtx_.fill();
-    this._canvasCtx_.closePath();
+    color: string,
+    noFill: boolean
+  ) {
+    this._ctx_.fillStyle = color;
+    let rect = this._ctx_.fillRect;
+    if (noFill) rect = this._ctx_.strokeRect;
+    rect(x, y, w, h);
+    // this._canvas_ctx_.beginPath();
+    // this._canvas_ctx_.rect(x, y, w, h);
+    // this._canvas_ctx_.fillStyle = boardColor;
+    // this._canvas_ctx_.fill();
+    // this._canvas_ctx_.closePath();
   }
-  protected drawCircle(x: number, y: number, r: number, color: string): void {
-    this._canvasCtx_.beginPath();
-    this._canvasCtx_.arc(x, y, r, 0, 2 * Math.PI, false);
-    this._canvasCtx_.fillStyle = color;
-    this._canvasCtx_.fill();
-    this._canvasCtx_.closePath();
+  protected drawCircle(x: number, y: number, r: number, color: string) {
+    this._ctx_.beginPath();
+    this._ctx_.arc(x, y, r, 0, 2 * Math.PI, false);
+    this._ctx_.fillStyle = color;
+    this._ctx_.fill();
+    this._ctx_.closePath();
   }
   protected writeText(
     text: string,
     x: number,
     y: number,
-    color = "white",
-    fontSize = 24
-  ): void {
-    this._canvasCtx_.font = `${fontSize}px oswald`;
-    this._canvasCtx_.fillStyle = color;
-    this._canvasCtx_.textAlign = "center";
-    this._canvasCtx_.fillText(text, x, y);
+    color: string,
+    fontSize: string
+  ) {
+    this._ctx_.font = `${fontSize ?? 24}px oswald`;
+    this._ctx_.fillStyle = color ?? "white";
+    this._ctx_.textAlign = "center";
+    this._ctx_.fillText(text ?? "SOME TEXT", x, y);
+  }
+  protected generateRandomCoord(
+    minX: number | null,
+    maxX: number | null,
+    minY: number | null,
+    maxY: number | null
+  ): GameAssetCoord {
+    minX ??= 0;
+    maxX ??= this._ref_.width;
+    minY ??= 0;
+    maxY ??= this._ref_.height;
+    const xCount = (maxX - minX) / this._cell_size_ + 1;
+    const yCount = (maxY - minY) / this._cell_size_ + 1;
+    const randX = Math.round(Math.random() * xCount) * this._cell_size_;
+    const randY = Math.round(Math.random() * yCount) * this._cell_size_;
+
+    return { x: randX, y: randY };
+  }
+  // abstract functions
+  protected abstract drawFrame(): void;
+  protected abstract detectCollision(): void;
+  protected abstract updateGame(): void;
+  protected abstract gameOver(): void;
+  protected abstract gameReset(): void;
+  protected abstract gameKeyPressEvent(keyCode: string): void;
+  // private functions
+  private getBoardDimension() {
+    const screenWidth = window.innerWidth;
+    const screenHeight = window.innerHeight;
+    const gameWidthRatio = this._config_.gameDimRatio.w;
+    const gameHeightRatio = this._config_.gameDimRatio.h;
+    const gameWidth = Math.floor((screenWidth * gameWidthRatio) / 1000) * 10;
+    const gameHeight = Math.floor((screenHeight * gameHeightRatio) / 1000) * 10;
+    return { h: gameHeight, w: gameWidth };
+  }
+  private clearGameBoard() {
+    this._ctx_.clearRect(0, 0, this._ref_.width, this._ref_.height);
+  }
+  private gameEngine() {
+    this.clearGameBoard();
+    this.drawFrame();
+    switch (this._status_) {
+      case GameStatus.GAME_READY:
+        if (
+          this._audio_?.GAME_OVER_AUDIO &&
+          !this._audio_?.GAME_OVER_AUDIO?.paused
+        )
+          this._audio_?.GAME_OVER_AUDIO?.pause();
+        this._audio_?.MENU_AUDIO?.play();
+        break;
+      case GameStatus.GAME_START:
+        if (this._audio_?.MENU_AUDIO && !this._audio_?.MENU_AUDIO?.paused)
+          this._audio_?.MENU_AUDIO?.pause();
+        this._audio_?.BG_AUDIO?.play();
+        this.detectCollision();
+        this.updateGame();
+        break;
+      case GameStatus.GAME_OVER:
+        if (this._audio_?.BG_AUDIO && !this._audio_?.BG_AUDIO?.paused)
+          this._audio_?.BG_AUDIO?.pause();
+        this._audio_?.GAME_OVER_AUDIO?.play();
+        break;
+    }
   }
 }
