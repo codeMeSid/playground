@@ -12,6 +12,7 @@ export enum GameConfigurable {
   gameWidth = "gameWidth",
   gameScore = "gameScore",
   cellSize = "cellSize",
+  gameStatus = "gameStatus",
 }
 export enum GameStatus {
   GAME_READY = "game_ready",

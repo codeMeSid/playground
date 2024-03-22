@@ -13,13 +13,13 @@ export abstract class Director {
   private _ref_!: HTMLCanvasElement;
   private _ctx_!: CanvasRenderingContext2D;
   private _config_!: GameConfiguration;
-  private _status_!: GameStatus;
-  private _game_speed_!: number;
+  protected _status_!: GameStatus;
   // audio
   private _audio_!: Record<GameAudioType, HTMLAudioElement | null>;
   private _last_paint_time_!: number;
   private _game_score_!: number;
   private _cell_size_!: number;
+  private _game_animator_id_ = -1;
   // constructor
   constructor(ref: HTMLCanvasElement, config: Partial<GameConfiguration>) {
     // config
@@ -37,7 +37,6 @@ export abstract class Director {
     this._ctx_ = ref.getContext("2d") as CanvasRenderingContext2D;
     this._audio_ = { BG_AUDIO: null, GAME_OVER_AUDIO: null, MENU_AUDIO: null };
     this._status_ = GameStatus.GAME_READY;
-    this._game_speed_ = this._config_.gameSpeed;
     this._last_paint_time_ = 0;
     this._game_score_ = 0;
     this._cell_size_ = 10;
@@ -52,12 +51,13 @@ export abstract class Director {
     this.updateGameConfig = this.updateGameConfig.bind(this);
     this.getGameConfig = this.getGameConfig.bind(this);
     this.gameEngine = this.gameEngine.bind(this);
-    this.startGame = this.startGame.bind(this);
+    this.startGameEngine = this.startGameEngine.bind(this);
     this.clearGameBoard = this.clearGameBoard.bind(this);
     this.drawRect = this.drawRect.bind(this);
     this.drawCircle = this.drawCircle.bind(this);
     this.writeText = this.writeText.bind(this);
     this.generateRandomCoord = this.generateRandomCoord.bind(this);
+    this.stopGameEngine = this.stopGameEngine.bind(this);
     // events
     if (!this._config_.gameDimFixed) {
       window.addEventListener("resize", () => {
@@ -91,10 +91,12 @@ export abstract class Director {
   }
   protected updateGameConfig(
     configKey: GameConfigurableType,
-    updatedValue: never
+    updatedValue: any
   ) {
     if ((this._config_ as any)[configKey])
-      (this._config_ as any)[configKey] = updatedValue;
+      this._config_ = Object.assign({}, this._config_, {
+        [configKey]: updatedValue,
+      });
     else
       switch (configKey) {
         case "gameScore":
@@ -103,7 +105,14 @@ export abstract class Director {
         case "cellSize":
           this._cell_size_ = updatedValue;
           break;
+        case "gameStatus":
+          this._status_ = updatedValue;
       }
+    console.log({
+      c: this._config_,
+      cc: (this._config_ as any)[configKey],
+      u: updatedValue,
+    });
   }
   protected getGameConfig(configKey: GameConfigurableType) {
     let value;
@@ -111,6 +120,9 @@ export abstract class Director {
       value = (this._config_ as any)[configKey] as any;
     else
       switch (configKey) {
+        case "gameStatus":
+          value = this._status_;
+          break;
         case "gameHeight":
           value = this._ref_.height;
           break;
@@ -126,13 +138,19 @@ export abstract class Director {
       }
     return value;
   }
-  protected startGame(currentTime: number) {
-    window.requestAnimationFrame(this.startGame);
+  protected startGameEngine(currentTime: number) {
+    this._game_animator_id_ = window.requestAnimationFrame(
+      this.startGameEngine
+    );
     const paintTime = (currentTime - this._last_paint_time_) / 1000;
-    const requiredPaintTime = 1 / this._game_speed_;
+    const requiredPaintTime = 1 / this._config_.gameSpeed;
     if (paintTime < requiredPaintTime) return;
     this._last_paint_time_ = currentTime;
     this.gameEngine();
+  }
+  protected stopGameEngine() {
+    if (this._game_animator_id_ !== -1)
+      window.cancelAnimationFrame(this._game_animator_id_);
   }
   protected drawRect(
     x: number,
@@ -140,17 +158,11 @@ export abstract class Director {
     w: number,
     h: number,
     color: string,
-    noFill: boolean
+    noFill?: boolean
   ) {
     this._ctx_.fillStyle = color;
-    let rect = this._ctx_.fillRect;
-    if (noFill) rect = this._ctx_.strokeRect;
-    rect(x, y, w, h);
-    // this._canvas_ctx_.beginPath();
-    // this._canvas_ctx_.rect(x, y, w, h);
-    // this._canvas_ctx_.fillStyle = boardColor;
-    // this._canvas_ctx_.fill();
-    // this._canvas_ctx_.closePath();
+    if (noFill) this._ctx_.strokeRect(x, y, w, h);
+    else this._ctx_.fillRect(x, y, w, h);
   }
   protected drawCircle(x: number, y: number, r: number, color: string) {
     this._ctx_.beginPath();
@@ -163,8 +175,8 @@ export abstract class Director {
     text: string,
     x: number,
     y: number,
-    color: string,
-    fontSize: string
+    color?: string,
+    fontSize?: number
   ) {
     this._ctx_.font = `${fontSize ?? 24}px oswald`;
     this._ctx_.fillStyle = color ?? "white";

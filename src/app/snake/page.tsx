@@ -1,23 +1,18 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { SnakeDirector } from "@/util/classes/Director/SnakeDirector";
+import { useCallback, useEffect, useRef } from "react";
 import styles from "./style.module.css";
-import { Director } from "@/util/classes/Director";
 
 function SnakeGamePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   let p = 0;
+
   useEffect(() => {
     if (canvasRef.current && p === 0) {
+      new SnakeDirector(canvasRef.current, {});
       p++;
-      new Director(canvasRef.current, {});
-      //   new SnakeDirector(canvasRef.current, {
-      //     color: "darkgreen",
-      //     widthRatioToScreen: 90,
-      //     heightRatioToScreen: 90,
-      //     speed: 10,
-      //   });
     }
-  }, [canvasRef, p]);
+  }, [canvasRef]);
 
   return (
     <div className={styles.rootContainer}>
