@@ -13,12 +13,13 @@ export abstract class Director {
   private _ref_!: HTMLCanvasElement;
   private _ctx_!: CanvasRenderingContext2D;
   private _config_!: GameConfiguration;
-  protected _status_!: GameStatus;
+  private _status_!: GameStatus;
   // audio
   private _audio_!: Record<GameAudioType, HTMLAudioElement | null>;
   private _last_paint_time_!: number;
   private _game_score_!: number;
   private _cell_size_!: number;
+  private _game_speed_!: number;
   private _game_animator_id_ = -1;
   // constructor
   constructor(ref: HTMLCanvasElement, config: Partial<GameConfiguration>) {
@@ -38,6 +39,7 @@ export abstract class Director {
     this._audio_ = { BG_AUDIO: null, GAME_OVER_AUDIO: null, MENU_AUDIO: null };
     this._status_ = GameStatus.GAME_READY;
     this._last_paint_time_ = 0;
+    this._game_speed_ = this._config_.gameSpeed;
     this._game_score_ = 0;
     this._cell_size_ = 10;
     // context
@@ -58,6 +60,8 @@ export abstract class Director {
     this.writeText = this.writeText.bind(this);
     this.generateRandomCoord = this.generateRandomCoord.bind(this);
     this.stopGameEngine = this.stopGameEngine.bind(this);
+    this.resetDirector = this.resetDirector.bind(this);
+    this.stopDirector = this.stopDirector.bind(this);
     // events
     if (!this._config_.gameDimFixed) {
       window.addEventListener("resize", () => {
@@ -93,11 +97,13 @@ export abstract class Director {
     configKey: GameConfigurableType,
     updatedValue: any
   ) {
-    if ((this._config_ as any)[configKey])
+    if ((this._config_ as any)[configKey]) {
       this._config_ = Object.assign({}, this._config_, {
         [configKey]: updatedValue,
       });
-    else
+      if (configKey === "gameSpeed")
+        this._game_speed_ = this._config_.gameSpeed;
+    } else
       switch (configKey) {
         case "gameScore":
           this._game_score_ = updatedValue;
@@ -108,11 +114,6 @@ export abstract class Director {
         case "gameStatus":
           this._status_ = updatedValue;
       }
-    console.log({
-      c: this._config_,
-      cc: (this._config_ as any)[configKey],
-      u: updatedValue,
-    });
   }
   protected getGameConfig(configKey: GameConfigurableType) {
     let value;
@@ -143,7 +144,7 @@ export abstract class Director {
       this.startGameEngine
     );
     const paintTime = (currentTime - this._last_paint_time_) / 1000;
-    const requiredPaintTime = 1 / this._config_.gameSpeed;
+    const requiredPaintTime = 1 / this._game_speed_;
     if (paintTime < requiredPaintTime) return;
     this._last_paint_time_ = currentTime;
     this.gameEngine();
@@ -199,6 +200,16 @@ export abstract class Director {
     const randY = Math.round(Math.random() * yCount) * this._cell_size_;
 
     return { x: randX, y: randY };
+  }
+  protected resetDirector() {
+    this._game_speed_ = this._config_.gameSpeed;
+    this._game_score_ = 0;
+    this._status_ = GameStatus.GAME_READY;
+    this.startGameEngine(0);
+  }
+  protected stopDirector() {
+    this._status_ = GameStatus.GAME_OVER;
+    this.stopGameEngine();
   }
   // abstract functions
   protected abstract drawFrame(): void;

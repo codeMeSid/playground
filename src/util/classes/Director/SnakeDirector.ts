@@ -152,7 +152,8 @@ export class SnakeDirector extends Director {
     });
     this.statusCard = this.createAsset({
       draw: () => {
-        switch (this._status_) {
+        const gameStatus = this.getGameConfig("gameStatus");
+        switch (gameStatus) {
           case GameStatus.GAME_READY:
             this.writeText(
               "START GAME",
@@ -239,22 +240,19 @@ export class SnakeDirector extends Director {
     this.snake.update();
   }
   protected gameOver() {
-    this._status_ = GameStatus.GAME_OVER;
+    this.stopDirector();
     this.statusCard.draw();
-    this.stopGameEngine();
   }
   protected gameReset() {
-    this._status_ = GameStatus.GAME_READY;
-    this.updateGameConfig("gameScore", 0);
     this.snake.reset();
     this.food.update();
-    this.startGameEngine(0);
+    this.resetDirector();
   }
   protected gameKeyPressEvent(keyCode: string): void {
+    const gameStatus = this.getGameConfig("gameStatus");
     const canStart =
-      keyCode === "Enter" && this._status_ === GameStatus.GAME_READY;
-    const canReset =
-      keyCode === "Enter" && this._status_ === GameStatus.GAME_OVER;
+      keyCode === "Enter" && gameStatus === GameStatus.GAME_READY;
+    const canReset = keyCode === "Enter" && gameStatus === GameStatus.GAME_OVER;
     const canGoLeft =
       (keyCode === "ArrowLeft" || keyCode === "KeyA") && this.snake.spd.x !== 1;
     const canGoRight =
@@ -266,7 +264,7 @@ export class SnakeDirector extends Director {
       (keyCode === "ArrowDown" || keyCode === "KeyS") &&
       this.snake.spd.y !== -1;
 
-    if (canStart) this._status_ = GameStatus.GAME_START;
+    if (canStart) this.updateGameConfig("gameStatus", GameStatus.GAME_START);
     else if (canReset) this.gameReset();
 
     if (canGoLeft) {
@@ -282,5 +280,7 @@ export class SnakeDirector extends Director {
       this.snake.spd.x = 0;
       this.snake.spd.y = 1;
     }
+
+    if (keyCode === "KeyF") this.food.update();
   }
 }
