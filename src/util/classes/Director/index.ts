@@ -62,6 +62,7 @@ export abstract class Director {
     this.stopGameEngine = this.stopGameEngine.bind(this);
     this.resetDirector = this.resetDirector.bind(this);
     this.stopDirector = this.stopDirector.bind(this);
+    this.drawLine = this.drawLine.bind(this);
     // events
     if (!this._config_.gameDimFixed) {
       window.addEventListener("resize", () => {
@@ -165,12 +166,37 @@ export abstract class Director {
     if (noFill) this._ctx_.strokeRect(x, y, w, h);
     else this._ctx_.fillRect(x, y, w, h);
   }
-  protected drawCircle(x: number, y: number, r: number, color: string) {
+  protected drawCircle(
+    x: number,
+    y: number,
+    r: number,
+    color: string,
+    noFill = false
+  ) {
     this._ctx_.beginPath();
     this._ctx_.arc(x, y, r, 0, 2 * Math.PI, false);
-    this._ctx_.fillStyle = color;
-    this._ctx_.fill();
+    if (noFill) {
+      this._ctx_.strokeStyle = color;
+      this._ctx_.stroke();
+    } else {
+      this._ctx_.fillStyle = color;
+      this._ctx_.fill();
+    }
+
     this._ctx_.closePath();
+  }
+  protected drawLine(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    color = "black"
+  ) {
+    this._ctx_.beginPath();
+    this._ctx_.moveTo(x1, y1);
+    this._ctx_.lineTo(x2, y2);
+    this._ctx_.strokeStyle = color;
+    this._ctx_.stroke();
   }
   protected writeText(
     text: string,

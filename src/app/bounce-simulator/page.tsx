@@ -2,14 +2,15 @@
 import { SnakeDirector } from "@/util/classes/Director/SnakeDirector";
 import { useEffect, useRef } from "react";
 import styles from "./style.module.css";
+import { BounceSimulatorDirector } from "@/util/classes/Director/BounceSimulatorDirector";
 
-function SnakeGamePage() {
+function BounceSimulator() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   let p = 0;
 
   useEffect(() => {
     if (canvasRef.current && p === 0) {
-      new SnakeDirector(canvasRef.current, {});
+      new BounceSimulatorDirector(canvasRef.current, { gameSpeed: 5000 });
       p++;
     }
   }, [canvasRef]);
@@ -21,4 +22,4 @@ function SnakeGamePage() {
   );
 }
 
-export default SnakeGamePage;
+export default BounceSimulator;

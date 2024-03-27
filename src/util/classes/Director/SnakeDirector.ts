@@ -17,7 +17,7 @@ export class SnakeDirector extends Director {
     const scoreBoardHeight = cellSize * 2;
     this.board = this.createAsset({
       pos: { x: 0, y: 0 },
-      color: "green",
+      color: "black",
       dim: { h: boardHeight, w: boardWidth, r: 0 },
       draw: () => {
         this.drawRect(
