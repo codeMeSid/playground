@@ -162,9 +162,16 @@ export abstract class Director {
     color: string,
     noFill?: boolean
   ) {
-    this._ctx_.fillStyle = color;
-    if (noFill) this._ctx_.strokeRect(x, y, w, h);
-    else this._ctx_.fillRect(x, y, w, h);
+    if (noFill) {
+      this._ctx_.beginPath();
+      this._ctx_.lineWidth = 1;
+      this._ctx_.strokeStyle = color;
+      this._ctx_.rect(x, y, w, h);
+      this._ctx_.stroke();
+    } else {
+      this._ctx_.fillStyle = color;
+      this._ctx_.fillRect(x, y, w, h);
+    }
   }
   protected drawCircle(
     x: number,
